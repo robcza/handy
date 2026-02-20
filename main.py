@@ -42,7 +42,8 @@ if not cap.isOpened():
     raise SystemExit(1)
 
 prev_x, prev_y = 0.0, 0.0
-last_click_time = 0.0
+last_right_click_time = 0.0
+is_dragging = False
 frame_ts = 0
 
 with HandLandmarker.create_from_options(options) as landmarker:
@@ -79,13 +80,32 @@ with HandLandmarker.create_from_options(options) as landmarker:
             scr_y = np.interp(smooth_y, [0, frame_h], [0, screen_h])
             pyautogui.moveTo(scr_x, scr_y, _pause=False)
 
-            # Pinch-to-click: distance between index tip and thumb tip
+            # Thumb pixel coords (shared by drag + right-click)
             tx, ty = thb_tip.x * frame_w, thb_tip.y * frame_h
-            dist = np.hypot(raw_x - tx, raw_y - ty)
 
-            if dist < PINCH_THRESHOLD and time.time() - last_click_time > CLICK_COOLDOWN:
-                pyautogui.click(_pause=False)
-                last_click_time = time.time()
+            # Drag / left-click: index finger + thumb pinch
+            dist = np.hypot(raw_x - tx, raw_y - ty)
+            if dist < PINCH_THRESHOLD:
+                if not is_dragging:
+                    pyautogui.mouseDown(_pause=False)
+                    is_dragging = True
+            else:
+                if is_dragging:
+                    pyautogui.mouseUp(_pause=False)
+                    is_dragging = False
+
+            # Right-click: middle finger + thumb pinch
+            mid_tip = lm[12]
+            mx, my = mid_tip.x * frame_w, mid_tip.y * frame_h
+            mid_dist = np.hypot(mx - tx, my - ty)
+            if mid_dist < PINCH_THRESHOLD and time.time() - last_right_click_time > CLICK_COOLDOWN:
+                pyautogui.rightClick(_pause=False)
+                last_right_click_time = time.time()
+
+        else:
+            if is_dragging:
+                pyautogui.mouseUp(_pause=False)
+                is_dragging = False
 
         cv2.imshow("Handy", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):

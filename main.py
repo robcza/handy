@@ -21,6 +21,18 @@ RunningMode = mp.tasks.vision.RunningMode
 draw_landmarks = mp.tasks.vision.drawing_utils.draw_landmarks
 HandConnections = mp.tasks.vision.HandLandmarksConnections.HAND_CONNECTIONS
 
+def is_only_middle_finger_up(lm):
+    """True when the middle finger is extended and all others are curled."""
+    def extended(tip, pip):
+        return lm[tip].y < lm[pip].y
+    return (
+        not extended(8, 6)      # index down
+        and extended(12, 10)    # middle up
+        and not extended(16, 14)  # ring down
+        and not extended(20, 18)  # pinky down
+        and not extended(4, 3)  # thumb down
+    )
+
 options = HandLandmarkerOptions(
     base_options=BaseOptions(model_asset_path=MODEL_PATH),
     running_mode=RunningMode.VIDEO,
@@ -63,6 +75,9 @@ with HandLandmarker.create_from_options(options) as landmarker:
         if results.hand_landmarks:
             lm = results.hand_landmarks[0]
             draw_landmarks(frame, lm, HandConnections)
+
+            if is_only_middle_finger_up(lm):
+                break
 
             idx_tip = lm[8]
             thb_tip = lm[4]
